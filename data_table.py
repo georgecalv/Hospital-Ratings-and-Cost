@@ -407,76 +407,58 @@ class DataTable:
 
         """
         # TODO
+        # make new datatable
+        table1Cols = table1.columns()
+        table2Cols = table2.columns()
+        new_columns = table1.columns()
+        for col in columns:
+            table2Cols.remove(col)
+        new_columns += table2Cols
+        result = DataTable(new_columns)
 
+        # make dictionary to find matches
+        # key equals the DataRow with the matching columns and element is the row number
+        rows = []
+        indexes = []
+        matched_rows = []
 
-        # # create list of new columns
-        # table1Cols = table1.columns()
-        # table2Cols = table2.columns()
-
-        # combine_length = len(table1Cols) + len(table2Cols) - len(columns)
-        # new_columns = []
-
-        # # no columns to match with no matches
-        # if len(columns) == 0 and non_matches:
-        #     new_columns = table1Cols + table2Cols
-        #     result = DataTable(new_columns)
-        #     # rows that can combine
-        #     for data_row in range(table1.row_count()):
-        #         r = table1[data_row].values()
-        #         r.extend(['' for x in table2Cols])
-        #         result.append(r)
-        #     # when the combining tables dont have the same amount of rows so fill with none if not available
-        #     # only if matching is true
-        #     for row in range(table2.row_count()):
-        #         r = ['' for x in table1Cols]
-        #         r.extend(table2[row].values())
-        #         result.append(r)
-        #     return result
-
-        # # columns to match
-        # else:
-        #     # remove duplicate columns from table2cols and check if column is in both tables
-        #     for col in columns:
-        #         try: 
-        #             table2Cols.remove(col)
-        #             x = table1[0][col]
-        #         except:
-        #             raise IndexError('Columns Error')
-        #     # check matching is in both table 1 and table 2
-        #     # make new columns for new table
-        #     new_columns = table1Cols + table2Cols
-
-        #     # new table
-        #     result = DataTable(new_columns)
-        #     matches = False
-        #     # check what was added from table2
-        #     addedList = []
-        #     # maybe go through table 2 and find matches
-        #     # find match from table two cols add to reuslt with all values
-        #     # reach end? add with non values for table 1 values
-        #     for row in range(table1.row_count()):
-        #         # make temp equal table 1 matching list
-        #         temp = table1[row].values(columns)
-        #         added = False
-        #         # find table 2 matching list
-        #         for row2 in range(table2.row_count()):
-        #             check = table2[row2].values(columns)
-        #             # add to result
-        #             if temp == check:
-        #                 result.append(table1[row].values() + table2[row2].values(table2Cols))
-        #                 addedList.append(check)
-        #                 added = True
-        #         # if row in table1 has no match and adding matches add to result with none values
-        #         if not added and non_matches:
-        #             result.append(table1[row].values() + ['' for x in table2Cols])
-        #     # add non matches in table 2 to result
-        #     if non_matches:
-        #         for row in range(table2.row_count()):
-        #             if table2[row].values(columns) not in addedList:
-        #                 temp = DataRow(new_columns, ['' for x in new_columns])
-        #                 for col in table2[row].columns():
-        #                     temp[col] = table2[row][col]
-        #                 result.append(temp.values())
+        for x in range(table1.row_count()):
+            # need to check for same values
+            if set(table1[x].values(columns)) not in rows:
+                rows.append(set(table1[x].values(columns)))
+                indexes.append([x])
+            else:
+                index = rows.index(set(table1[x].values(columns)))
+                indexes[index].append(x)
+        # find matches and put into new table
+        for y in range(table2.row_count()):
+            # match
+            if set(table2[y].values(columns)) in rows and len(columns) != 0:
+                index = rows.index(set(table2[y].values(columns)))
+                data_rows = indexes[index]
+                for row in data_rows:
+                    matched_rows.append(row)
+                    table1_row = table1[row].values()
+                    table1_row.extend(table2[y].values(table2Cols))
+                    result.append(table1_row)
+            # no match for table 2 cols so check if non matches
+            if non_matches and ((set(table2[y].values(columns)) not in rows) or len(columns) == 0):
+                temp = table2[y]
+                d = DataRow(new_columns, ["" for x in range(len(new_columns))])
+                for c in new_columns:
+                    try:
+                        d[c] =  temp[c] 
+                    except:
+                        d[c] = ''
+                result.append(d.values()) 
+        # non_matches for table 1 values
+        if non_matches:
+            for r in range(table1.row_count()):
+                if r not in matched_rows:
+                    temp = ["" for x in range(len(table2Cols))]
+                    values = table1[r].values()
+                    values.extend(temp)
+                    result.append(values)
         return result
 
         pass

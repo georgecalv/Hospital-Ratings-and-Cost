@@ -18,7 +18,6 @@ def test_no_column_combine_table():
     assert t3.columns() == ['x', 'y', 'b', 'z']
     assert t3.row_count() == 8
     rows = [t3[i].values() for i in range(t3.row_count())]
-
     assert [1, 20, '', ''] in rows
     assert [3, 40, '', ''] in rows
     assert [2, 30, '', ''] in rows
