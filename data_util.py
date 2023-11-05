@@ -248,7 +248,10 @@ def histogram(table, column, nbins, xlabel, ylabel, title, filename=None):
     plt.title(title)
     plt.hist(l, nbins)
     plt.xlabel(xlabel)
+    plt.xticks(rotation='vertical')
     plt.ylabel(ylabel)
+
+    plt.figure(figsize=(120,120))
 
     if filename:
         plt.savefig(filename, format='svg')
