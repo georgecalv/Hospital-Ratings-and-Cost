@@ -9,9 +9,100 @@ CLASS: CPSC 322
 from data_table import DataTable, DataRow
 
 
-#----------------------------------------------------------------------
-# HW-5
-#----------------------------------------------------------------------
+def naive_bayes(table, instance, label_col, continuous_cols, categorical_cols=[]):
+    """Returns the labels with the highest probabibility for the instance
+    given table of instances using the naive bayes algorithm.
+
+    Args:
+       table: A data table of instances to use for estimating most probably labels.
+       instance: The instance to classify.
+       continuous_cols: The continuous columns to use in the estimation.
+       categorical_cols: The categorical columns to use in the estimation. 
+
+    Returns: A pair (labels, prob) consisting of a list of the labels
+        with the highest probability and the corresponding highest
+        probability.
+
+    """
+    # catgorical probabilities
+    # key = probability, element = list of labels
+    prob_dict = {}
+    # label probaility
+    class_probs = {}
+    # key = label, element is a list of rows where label occured
+    list_indices = {}
+    dist = distinct_values(table, label_col)
+    # prob label and getting row indices for row
+    for label in dist:
+        for row in range(table.row_count()):
+            if table[row][label_col] == label:
+                if label in class_probs:
+                    class_probs[label] += 1
+                else:
+                    class_probs[label] = 1
+                # dictionary for rows with label
+                if label in list_indices:
+                    list_indices[label].append(row)
+                else:
+                    list_indices[label] = [row]
+    if len(categorical_cols) >= 1:
+        # prob instance given label fo categorical
+        for label in dist:
+            rows = list_indices[label]
+            count = 0
+            # go through categorical columns
+            # val = prob for x given label
+            val = 1
+            for cat in categorical_cols:
+                # count rows that have the same val in cat with label
+                count = 0
+                for row in rows:
+                    if table[row][cat] == instance[cat]:
+                        count += 1
+                # numerator for feature calc
+                frac = (count / class_probs[label])
+                val *= frac
+            prob = val * (class_probs[label] / table.row_count())
+            if prob in prob_dict:
+                prob_dict[prob].append(label)
+            else:
+                prob_dict[prob] = [label]
+    # probs for continuous
+    if len(continuous_cols) >= 1:
+        for label in dist:
+            for con in continuous_cols:
+                temp = table.rows(list_indices[label])
+                mew = mean(temp, con)
+                std = std_dev(temp, con)
+                prob_cont = (gaussian_density(instance[con], mew, std) * (class_probs[label] / table.row_count()))
+                if prob_cont in prob_dict:
+                    prob_dict[prob_cont].append(label)
+                else:
+                    prob_dict[prob_cont] = [label]
+    actual_prob = max(prob_dict)
+    return (prob_dict[actual_prob], actual_prob) 
+    pass
+
+
+def gaussian_density(x, mean, sdev):
+    """Return the probability of an x value given the mean and standard
+    deviation assuming a normal distribution.
+
+    Args:
+        x: The value to estimate the probability of.
+        mean: The mean of the distribution.
+        sdev: The standard deviation of the distribution.
+
+    """
+    p = (2.0 * math.pi)
+    denom = (math.sqrt(p) * sdev)
+    frac = (1 / denom)
+    exp = (-1.0 * ((x - mean)) ** 2) / (2 * ((sdev) ** 2))
+    prod = math.e ** exp
+    result = frac * prod
+    return result
+    pass
+
 
 def knn(table, instance, k, numerical_columns, nominal_columns=[]):
     """Returns the k closest distance values and corresponding table
