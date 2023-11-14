@@ -6,7 +6,10 @@ CLASS: CPSC 322
 
 """
 
-from data_table import DataTable, DataRow
+from data_table import *
+from data_util import *
+
+import math
 
 
 def naive_bayes(table, instance, label_col, continuous_cols, categorical_cols=[]):
@@ -125,38 +128,37 @@ def knn(table, instance, k, numerical_columns, nominal_columns=[]):
         square root applied.
 
     """
-    # dictionary of k key value pairs
+    # numerical
+    # key = distance, element equals the datarow
     dict_neighbors = {}
-    # go through rows
+    matching_cols = numerical_columns + nominal_columns
+
+    # compute closest
     for row in range(table.row_count()):
-        # what columns to compare
         dist = 0
-        # count numerical distance
-        for col in numerical_columns:
-            # add to distance
-            dist += (instance[col] - table[row][col]) ** 2
-        # count nominal distance
-        for nom_col in nominal_columns:
-            if instance[nom_col] != table[row][nom_col]:
-                dist += 1
-        # check if checking columns has values
-        if len(numerical_columns) > 0 or len(nominal_columns) > 0:
-            # check if key exists and add to dictionary
-            if dist in dict_neighbors:
-                dict_neighbors[dist].append(table[row])
-            else:  
-                dict_neighbors[dist] = [table[row]]
-    # return the k closest
-    # closest dictionary
-    closest = {}
-    sorted_key_list = sorted(dict_neighbors.keys())
-    if k <= len(sorted_key_list):
-        for x in range(k):
-            closest[sorted_key_list[x]] = dict_neighbors[sorted_key_list[x]]
-    else:
-        return dict_neighbors
-    
-    return closest
+        # go through matching
+        for col in matching_cols:
+            # calc dist
+            if col in numerical_columns:
+                dist += (instance[col] - table[row][col]) ** 2
+            elif col in nominal_columns:
+                if table[row][col] != instance[col]:
+                    dist += 1
+        # add to dictionary
+        if dist in dict_neighbors:
+
+            dict_neighbors[dist].append(table[row])
+        else:  
+            dict_neighbors[dist] = [table[row]]
+    keys_list = list(dict_neighbors.keys())
+    keys_list.sort()
+    count = 0
+    result = {}
+    for key in keys_list:
+        count += 1
+        if count <= k:
+            result[key] = dict_neighbors[key]
+    return result
     pass
 
 

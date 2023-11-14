@@ -265,7 +265,10 @@ def knn_eval(train, test, vote_fun, k, label_col, numeric_cols, nominal_cols=[])
         # find what row to add value to 
         actual_row = column_values(confusion_matrix, 'actual').index(actual)
         # row is the actual and the column is the value predicted by the model
-        confusion_matrix[actual_row][predicted] += 1
+        try:
+            confusion_matrix[actual_row][predicted] += 1
+        except:
+            print(actual_row, " ", predicted)
     return confusion_matrix
     pass
 
