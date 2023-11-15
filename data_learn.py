@@ -146,7 +146,6 @@ def knn(table, instance, k, numerical_columns, nominal_columns=[]):
                     dist += 1
         # add to dictionary
         if dist in dict_neighbors:
-
             dict_neighbors[dist].append(table[row])
         else:  
             dict_neighbors[dist] = [table[row]]
@@ -158,6 +157,8 @@ def knn(table, instance, k, numerical_columns, nominal_columns=[]):
         count += 1
         if count <= k:
             result[key] = dict_neighbors[key]
+        else:
+            break
     return result
     pass
 

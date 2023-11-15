@@ -268,7 +268,7 @@ def knn_eval(train, test, vote_fun, k, label_col, numeric_cols, nominal_cols=[])
         try:
             confusion_matrix[actual_row][predicted] += 1
         except:
-            print(actual_row, " ", predicted)
+            print(actual, " ", actual_row, " ", predicted)
     return confusion_matrix
     pass
 
