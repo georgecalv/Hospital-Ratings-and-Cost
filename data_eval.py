@@ -11,7 +11,86 @@ from data_learn import *
 from data_util import *
 import random
 
+def tdidt_eval(train, test, label_col, columns):
+    """Evaluates the given test set using tdidt over the training
+    set, returning a corresponding confusion matrix.
 
+    Args:
+       train: The training data set.
+       test: The testing data set.
+       label_col: The column being predicted.
+       columns: The categorical columns
+
+    Returns: A data table with n rows (one per label), n+1 columns (an
+        'actual' column plus n label columns), and corresponding
+        prediction vs actual label counts.
+
+    Notes: If the naive bayes returns multiple labels for a given test
+        instance, the first such label is selected.
+
+    """
+    #TODO
+    # make confusion matrix base
+    confusion_cols = ["actual"]
+    # row for confusion matrix
+    dist = distinct_values(test, label_col)
+    confusion_cols.extend(dist)
+    confusion_matrix = DataTable(confusion_cols)
+    values = [0 for x in range(len(confusion_cols))]
+    for col in dist:
+        values[0] = col
+        confusion_matrix.append(values)
+    tree = tdidt(train, label_col, columns)
+    for row in range(test.row_count()):
+        prediction = tdidt_predict(tree, test[row])
+        predicted_label = prediction[0]
+        actual_label = test[row][label_col]
+        actual_col = column_values(confusion_matrix, "actual")
+        index_actual = actual_col.index(actual_label)
+        confusion_matrix[index_actual][predicted_label] += 1
+    return confusion_matrix
+    pass
+
+
+def tdidt_stratified(table, k_folds, label_col, columns):
+    """Evaluates tdidt prediction approach over the table using stratified
+    k-fold cross validation, returning a single confusion matrix of
+    the results.
+
+    Args:
+        table: The data table.
+        k_folds: The number of stratified folds to use.
+        label_col: The column with labels to predict. 
+        columns: The categorical columns for tdidt. 
+
+    Notes: Each fold created is used as the test set whose results are
+        added to a combined confusion matrix from evaluating each
+        fold.
+
+    """
+    # make confusion matrix base
+    confusion_cols = ["actual"]
+    # row for confusion matrix
+    dist = distinct_values(table, label_col)
+    confusion_cols.extend(dist)
+    confusion_matrix = DataTable(confusion_cols)
+    values = [0 for x in range(len(confusion_cols))]
+    for col in dist:
+        values[0] = col
+        confusion_matrix.append(values)
+
+    # k folds
+    folds = stratify(table, label_col, k_folds)
+    for test in folds:
+        fold_matrix = tdidt_eval(table, test, label_col, columns)
+        matrix_cols = fold_matrix.columns()
+        matrix_cols.remove('actual')
+        for row in range(fold_matrix.row_count()):
+            for col in matrix_cols:
+                confusion_matrix[row][col] += fold_matrix[row][col]
+    return confusion_matrix
+
+    pass
 def stratify(table, label_column, k):
     """Returns a list of k stratified folds as data tables from the given
     data table based on the label column.
