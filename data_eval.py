@@ -7,9 +7,271 @@ CLASS: CPSC 322
 """
 
 from data_table import *
-from data_learn import *
 from data_util import *
-import random
+from data_learn import *
+from random import *
+
+
+
+#----------------------------------------------------------------------
+# HW-8
+#----------------------------------------------------------------------
+
+def bootstrap(table): 
+    """Creates a training and testing set using the bootstrap method.
+
+    Args: 
+        table: The table to create the train and test sets from.
+
+    Returns: The pair (training_set, testing_set)
+
+    """
+    training_set = DataTable(table.columns())
+    testing_set = DataTable(table.columns())
+    list_row_nums = [x for x in range(table.row_count())]
+    for row in range(table.row_count()):
+        num = randint(0, table.row_count() - 1)
+        if num in list_row_nums:
+            list_row_nums.remove(num)
+        training_set.append(table[num].values())
+    testing_set = table.rows(list_row_nums)
+    return (training_set, testing_set)
+
+    
+    pass
+
+
+
+def stratified_holdout(table, label_col, test_set_size):
+    """Partitions the table into a training and test set using the holdout
+    method such that the test set has a similar distribution as the
+    table.
+
+    Args:
+        table: The table to partition.
+        label_col: The column with the class labels. 
+        test_set_size: The number of rows to include in the test set.
+
+    Returns: The pair (training_set, test_set)
+
+    """
+    #TODO
+    # distributions
+    l = label_col[0]
+    dist_vals = distinct_values(table, l)
+    dict_count = {}
+    for val in dist_vals:
+        dict_count[val] = column_values(table, l).count(val)
+    
+    training_set = DataTable(table.columns())
+    test_set = DataTable(table.columns())
+    rows_added = []
+    # create_table
+    for label, count in dict_count.items():
+        # get indexes of rows with label
+        indexes = [x for x in range(table.row_count()) if table[x][l] == label]
+        shuffle(indexes)
+        # num rows to include in table
+        temp_size = int(test_set_size * count / table.row_count())
+        
+        # get data rows
+        x = 0
+        while x < temp_size:
+            test_set.append(table[indexes[x]].values())
+            x += 1
+        
+        rows_added.extend(indexes[0:temp_size])
+
+    for r in range(table.row_count()):
+        if r not in rows_added:
+            training_set.append(table[r].values())
+    return (training_set, test_set)
+    pass
+    
+
+
+def tdidt_eval_with_tree(dt_root, test, label_col, columns):
+    """Evaluates the given test set using tdidt over the training
+    set, returning a corresponding confusion matrix.
+
+    Args:
+       td_root: The decision tree to use.
+       test: The testing data set.
+       label_col: The column being predicted.
+       columns: The categorical columns
+
+    Returns: A data table with n rows (one per label), n+1 columns (an
+        'actual' column plus n label columns), and corresponding
+        prediction vs actual label counts.
+
+    """
+    # confusion matrix table 
+    confusion_cols = ["actual"]
+    # cols for confusion matrix
+    instances = summarize_instances(dt_root)
+    for item, num in instances.items():
+        confusion_cols.append(item)
+    confusion_matrix = DataTable(confusion_cols)
+    values = [0 for x in range(len(confusion_cols) - 1)]
+    # rows for confusion
+    for col in confusion_cols:
+        if not(col == 'actual'):
+            temp = [col]
+            temp.extend(values)
+            confusion_matrix.append(temp)
+    # fill
+    for row in range(test.row_count()):
+        prediction, percent = tdidt_predict(dt_root, test[row])
+        actual = test[row][label_col]
+        # if value predicted not in test set not in training set
+        try:
+            index = column_values(confusion_matrix, 'actual').index(actual)
+        except:
+            temp_col = confusion_matrix.columns()
+            temp_col.append(actual)
+            new_confusion_matrix = DataTable(temp_col)
+            for row in range(confusion_matrix.row_count()):
+                temp = confusion_matrix[row].values()
+                temp.append(0)
+                new_confusion_matrix.append(temp)
+            new_row = [actual]
+            temp = [0 for x in range(new_confusion_matrix.column_count() - 1)]
+            new_row.extend(temp)
+            new_confusion_matrix.append(new_row)
+            confusion_matrix = new_confusion_matrix
+            index = column_values(confusion_matrix, 'actual').index(actual)
+        confusion_matrix[index][prediction] += 1 
+    return confusion_matrix
+    pass
+
+
+
+def random_forest(table, remainder, F, M, N, label_col, columns):
+    """Returns a random forest build from the given table. 
+    
+    Args:
+        table: The original table for cleaning up the decision tree.
+        remainder: The table to use to build the random forest.
+        F: The subset of columns to use for each classifier.
+        M: The number of unique accuracy values to return.
+        N: The total number of decision trees to build initially.
+        label_col: The column with the class labels.
+        columns: The categorical columns used for building the forest.
+
+    Returns: A list of (at most) M pairs (tree, accuracy) consisting
+        of the "best" decision trees and their corresponding accuracy
+        values. The exact number of trees (pairs) returned depends on
+        the other parameters (F, M, N, and so on).
+
+    """
+    # Create N bootstrap samples from remainder build tree and test
+    # key = accuracy, element equals list of trees
+    result_dict = {}
+    for x in range(N):
+        # create boostrap sample to make tree
+        training_set, validation_set = bootstrap(remainder)
+        tree = tdidt_F(training_set, label_col, F, columns)
+        # clean
+        tree = resolve_attribute_values(tree, table)
+        tree = resolve_leaf_nodes(tree)
+
+        # get confusion matrix for tree
+        matrix = tdidt_eval_with_tree(tree, validation_set, label_col, columns)
+
+        # calculate accuracy
+        cols = matrix.columns()
+        cols.remove('actual')
+        acc = 0
+        for c in cols:
+            acc += accuracy(matrix, c)
+        try:
+            acc /= len(cols)
+        except:
+            acc = 0
+        # if acc in result_dict:
+        #     result_dict[acc].append(tree)
+        # else:
+            # result_dict[acc] = [tree]
+        result_dict[acc] = tree
+    # choose highest M trees
+    key_list = list(result_dict.keys())
+    key_list.sort(reverse=True)
+    result = []
+    num = 0
+    while len(result) < M:
+        try:
+            result.append((result_dict[key_list[num]], key_list[num]))
+        except:
+            break 
+    return result
+    pass
+
+
+
+def random_forest_eval(table, training, test, F, M, N, label_col, columns):
+    """Builds a random forest and evaluate's it given a training and
+    testing set.
+
+    Args: 
+        table: The initial table.
+        training: training set to use
+        test: test set to use
+        F: Number of features (columns) to select.
+        M: Number of trees to include in random forest.
+        N: Number of trees to initially generate.
+        label_col: The column with class labels. 
+        columns: The categorical columns to use for classification.
+
+    Returns: A confusion matrix containing the results. 
+
+    Notes: Assumes weighted voting (based on each tree's accuracy) is
+        used to select predicted label for each test row.
+
+    """
+    # make forest
+    # divide into remainder and test
+    # remainder = 2/3 |D|
+    # remainder, new_test = stratified_holdout(table, label_col, (table.row_count() // 3))
+    forest = random_forest(table, training, F, M, N, label_col, columns)
+    # make confusion_matrix
+    confusion_cols = ["actual"]
+    dist = distinct_values(table, label_col)
+    confusion_cols.extend(dist)
+    confusion_matrix = DataTable(confusion_cols)
+    vals = [0 for x in range(confusion_matrix.column_count() - 1)]
+    for col in confusion_cols:
+        if col != "actual":
+            temp = [col]
+            temp.extend(vals)
+            confusion_matrix.append(temp)
+    # make temp datarow
+    temp_row = DataRow(table.columns(), ['' for x in range(table.column_count())])
+    # evaluate forest
+    for row in range(test.row_count()):
+        # list of predicted rows
+        prediction_list = []
+        # list of accuracies for prediction
+        cor_scores = []
+        # temp row
+        temp_row = DataRow(table.columns(), test[row].values())
+        # get predictions
+        for tree in forest:
+            prediction, percent = tdidt_predict(tree[0], test[row])
+            temp_row[label_col] = prediction
+            prediction_list.append(temp_row)
+            cor_scores.append(percent)
+        # list of prediction
+        final_predict = weighted_vote(prediction_list, cor_scores, label_col)
+        final_predict = final_predict[0]
+        actual = test[row][label_col]
+        
+        # put in matrix
+        index = column_values(confusion_matrix, 'actual').index(actual)
+        confusion_matrix[index][final_predict] += 1
+    return confusion_matrix
+    pass
+
+
 
 def tdidt_eval(train, test, label_col, columns):
     """Evaluates the given test set using tdidt over the training
@@ -40,14 +302,21 @@ def tdidt_eval(train, test, label_col, columns):
     for col in dist:
         values[0] = col
         confusion_matrix.append(values)
+
     tree = tdidt(train, label_col, columns)
+    tree = resolve_attribute_values(tree, train)
+    tree = resolve_leaf_nodes(tree)
     for row in range(test.row_count()):
-        prediction = tdidt_predict(tree, test[row])
-        predicted_label = prediction[0]
-        actual_label = test[row][label_col]
-        actual_col = column_values(confusion_matrix, "actual")
-        index_actual = actual_col.index(actual_label)
-        confusion_matrix[index_actual][predicted_label] += 1
+        try:
+            prediction = tdidt_predict(tree, test[row])
+            predicted_label = prediction[0]
+            actual_label = test[row][label_col]
+            actual_col = column_values(confusion_matrix, "actual")
+            index_actual = actual_col.index(actual_label)
+            confusion_matrix[index_actual][predicted_label] += 1
+        except:
+            print("value not in tree")
+            print(test[row])
     return confusion_matrix
     pass
 
@@ -91,6 +360,7 @@ def tdidt_stratified(table, k_folds, label_col, columns):
     return confusion_matrix
 
     pass
+
 def stratify(table, label_column, k):
     """Returns a list of k stratified folds as data tables from the given
     data table based on the label column.
@@ -276,6 +546,11 @@ def knn_stratified(table, k_folds, label_col, vote_fun, k, num_cols, nom_cols=[]
     return confusion_matrix
     pass
 
+
+#----------------------------------------------------------------------
+# HW-5
+#----------------------------------------------------------------------
+
 def holdout(table, test_set_size):
     """Partitions the table into a training and test set using the holdout method. 
 
@@ -288,7 +563,7 @@ def holdout(table, test_set_size):
     """
     training_set = DataTable(table.columns())
     test_set = DataTable(table.columns())
-    indexes = random.sample(range(table.row_count()), test_set_size)
+    indexes = sample(range(table.row_count()), test_set_size)
     for row in range(table.row_count()):
         if row in indexes:
             test_set.append(table[row].values())
@@ -344,10 +619,7 @@ def knn_eval(train, test, vote_fun, k, label_col, numeric_cols, nominal_cols=[])
         # find what row to add value to 
         actual_row = column_values(confusion_matrix, 'actual').index(actual)
         # row is the actual and the column is the value predicted by the model
-        try:
-            confusion_matrix[actual_row][predicted] += 1
-        except:
-            print(actual, " ", actual_row, " ", predicted)
+        confusion_matrix[actual_row][predicted] += 1
     return confusion_matrix
     pass
 
@@ -401,7 +673,11 @@ def accuracy(confusion_matrix, label):
         for col in confusion_matrix.columns():
             if not(col == 'actual'):
                 denom += confusion_matrix[x][col]
-    return (numer / denom)
+    try:
+        result = (numer / denom)
+    except:
+        result = 0
+    return result
     pass
 
 
@@ -420,7 +696,11 @@ def precision(confusion_matrix, label):
     denom = 0
     for row in range(confusion_matrix.row_count()):
         denom += confusion_matrix[row][label]
-    return (numer / denom)
+    try:
+        result = (numer / denom)
+    except:
+        result = 0
+    return result
     pass
 
 
@@ -440,6 +720,10 @@ def recall(confusion_matrix, label):
         if not(col == 'actual'):
             denom += confusion_matrix[index][col]
 
-    return (numer / denom)
+    try:
+        result = (numer / denom)
+    except:
+        result = 0
+    return result
     pass
 

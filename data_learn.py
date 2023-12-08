@@ -1,4 +1,4 @@
-"""Machine learning algorithm functions. 
+"""Machine learning algorithm implementations.
 
 NAME: George Calvert
 DATE: Fall 2023
@@ -10,7 +10,243 @@ from data_table import *
 from data_util import *
 from decision_tree import *
 
+from random import *
 import math
+
+
+#----------------------------------------------------------------------
+# HW-8
+#----------------------------------------------------------------------
+
+
+def random_subset(F, columns):
+    """Returns F unique column names from the given list of columns. The
+    column names are selected randomly from the given names.
+
+    Args: 
+        F: The number of columns to return.
+        columns: The columns to select F column names from.
+
+    Notes: If F is greater or equal to the number of names in columns,
+       then the columns list is just returned.
+
+    """
+    if F >= len(columns):
+        return columns
+    else:
+        result = []
+        x = 0
+        while x < F:
+            r = randint(0, len(columns) - 1)
+            if columns[r] not in result:
+                result.append(columns[r])
+                x += 1
+        return result 
+    pass
+
+
+
+def tdidt_F(table, label_col, F, columns): 
+    """Returns an initial decision tree for the table using information
+    gain, selecting a random subset of size F of the columns for
+    attribute selection. If fewer than F columns remain, all columns
+    are used in attribute selection.
+
+    Args:
+        table: The table to build the decision tree from. 
+        label_col: The column containing class labels. 
+        F: The number of columns to randomly subselect
+        columns: The categorical columns. 
+
+    Notes: The resulting tree can contain multiple leaf nodes for a
+        particular attribute value, may have attributes without all
+        possible attribute values, and in general is not pruned.
+
+    """
+    dt_root = tdidt(table, label_col, random_subset(F, columns))
+    return dt_root
+    pass
+
+
+
+def closest_centroid(centroids, row, columns):
+    """Given k centroids and a row, finds the centroid that the row is
+    closest to.
+
+    Args:
+        centroids: The list of rows serving as cluster centroids.
+        row: The row to find closest centroid to.
+        columns: The numerical columns to calculate distance from. 
+    
+    Returns: The index of the centroid the row is closest to. 
+
+    Notes: Uses Euclidean distance (without the sqrt) and assumes
+        there is at least one centroid.
+
+    """
+    # key = distance, element = list of indexes of centroid its lostest to 
+    dist_dict = {}
+    for roid in range(len(centroids)):
+        dist = 0
+        for col in columns:
+            dist += (centroids[roid][col] - row[col]) ** 2
+        if dist in dist_dict:
+            dist_dict[dist].append(roid)
+        else:
+            dist_dict[dist] = [roid]
+    min_dist = min(list(dist_dict.keys()))
+    return dist_dict[min_dist][0]
+    pass
+
+
+
+def select_k_random_centroids(table, k):
+    """Returns a list of k random rows from the table to serve as initial
+    centroids.
+
+    Args: 
+        table: The table to select rows from.
+        k: The number of rows to select values from.
+    
+    Returns: k unique rows. 
+
+    Notes: k must be less than or equal to the number of rows in the table. 
+
+    """
+    if k <= table.row_count():
+        result = []
+        indexes = sample(range(table.row_count()), k)
+        for row in indexes:
+            result.append(table[row])
+        return result
+    else:
+        raise ValueError("K is larger than amount of rows in table")
+
+    pass
+
+
+
+def k_means(table, centroids, columns): 
+    """Returns k clusters from the table using the initial centroids for
+    the given numerical columns.
+
+    Args:
+        table: The data table to build the clusters from.
+        centroids: Initial centroids to use, where k is length of centroids.
+        columns: The numerical columns for calculating distances.
+
+    Returns: A list of k clusters, where each cluster is represented
+        as a data table.
+
+    Notes: Assumes length of given centroids is number of clusters k to find.
+
+    """
+    # number of clusters to find
+    k = len(centroids)
+
+     # intital clusters
+    list_clusters = [DataTable(table.columns()) for x in range(k)]
+    for row in range(table.row_count()):
+        index = closest_centroid(centroids, table[row], columns)
+        list_clusters[index].append(table[row].values())
+    list_clusters = calc_new_clusters(table, list_clusters, centroids, columns)
+    return list_clusters   
+    pass
+
+def calc_new_clusters(table, list_clusters, centroids, columns):
+    """Recursive function that runs until old centroids are equal to new centroids
+
+    Args:
+        table: original data table
+        list_clusters: A list of data tables serving as the clusters
+        centroids: list of data rows that are the centroids per cluster
+        columns: columns to compute distances
+    
+    Returns: A list of centroids for each cluster 
+
+    """
+    # make new_centroids
+    new_centroids = []
+    for cluster in list_clusters:
+        temp = DataRow(table.columns(), [0 for x in range(cluster.column_count())])
+        for col in columns:
+            c = mean(cluster, col)
+            temp[col] = c
+        new_centroids.append(temp)
+    # cehck if equal
+    check = True
+    for val in range(len(centroids)):
+        if centroids[val] != new_centroids[val]:
+            check = False
+            break
+    if check:
+        return list_clusters
+    else:
+        new_list_clusters, data_row_centroids = create_clusters(table, new_centroids, columns)
+        return calc_new_clusters(table, new_list_clusters, data_row_centroids, columns)
+    pass
+
+def create_clusters(table, new_centroids, columns):
+    """ Creates new list of data rows from centroid values
+
+    Args:
+        table: original data table
+        new_centroids: list of calculated new centroid values data rows
+        columns: columns to compute distances
+    
+    Returns: list of new calculated clusters, A list of centroids for each cluster 
+
+    """
+    new_list_clusters = [DataTable(table.columns()) for x in range(len(new_centroids))]
+    for row in range(table.row_count()):
+        index = closest_centroid(new_centroids, table[row], columns)
+        new_list_clusters[index].append(table[row].values())
+    return new_list_clusters, new_centroids
+    pass
+
+def tss(clusters, columns):
+    """Return the total sum of squares (tss) for each cluster using the
+    given numerical columns.
+
+    Args:
+        clusters: A list of data tables serving as the clusters
+        columns: The list of numerical columns for determining distances.
+    
+    Returns: A list of tss scores for each cluster. 
+
+    """
+    if len(clusters) == 0 or clusters[0].row_count() == 0:
+        return []
+    # make centroids for each cluster
+    centroids = []
+    for cluster in clusters:
+        temp = []
+        for col in columns:
+            temp.append(mean(cluster, col))
+        centroids.append(temp)
+    # go through clusters to get tss for each 
+    tss = []
+    # go through clusters
+    for c in range(len(clusters)):
+        value = 0
+        # go through row in each cluster
+        for row in range(clusters[c].row_count()):
+            # get row values 
+            temp = clusters[c][row].values(columns)
+            for val in range(len(temp)):
+                value += (temp[val] - centroids[c][val]) ** 2
+        tss.append(value)
+    return tss
+
+
+    pass
+
+
+
+
+#----------------------------------------------------------------------
+# HW-7
+#----------------------------------------------------------------------
 
 def same_class(table, label_col):
     """Returns true if all of the instances in the table have the same
@@ -290,38 +526,6 @@ def resolve_attribute_values(dt_root, table):
                     new_dt_root_vals[val] = child
             new_dt_root.values = new_dt_root_vals
             return new_dt_root
-
-        # new_dt_root = AttributeNode(dt_root.name, dt_root.values.copy())
-        # new_dt_root_vals = {}
-        # dist_list = distinct_values(table, dt_root.name)
-        # edges = list(dt_root.values.keys())
-        # # not right amount of edges
-        # if len(dist_list) != len(edges):
-        #     new_node = []
-        #     total = 0
-        #     for val, child in dt_root.values.items():
-        #         if type(child) == AttributeNode:
-        #             temp = resolve_attribute_values(child, table)
-        #             for n in temp:
-        #                 total += n.total
-        #             new_node.extend(temp)
-        #         else:
-        #             for n in child:
-        #                 total += n.total
-        #             new_node.extend(child)
-        #     for leaf in new_node:
-        #         leaf.total = total
-        #     return new_node
-        # # same edges so do recursive calls on attribute nodes
-        # else:
-        #     for val, child in dt_root.values.items():
-        #         if type(child) == AttributeNode:
-        #             temp = resolve_attribute_values(child, table)
-        #             new_dt_root_vals[val] = temp
-        #         else:
-        #             new_dt_root_vals[val] = child
-        #     new_dt_root.values = new_dt_root_vals
-        #     return new_dt_root
     pass
 
 
@@ -356,6 +560,8 @@ def tdidt_predict(dt_root, instance):
                 temp = leaf
         return (temp.label, temp.percent())
     pass
+
+
 def naive_bayes(table, instance, label_col, continuous_cols, categorical_cols=[]):
     """Returns the labels with the highest probabibility for the instance
     given table of instances using the naive bayes algorithm.
@@ -451,6 +657,10 @@ def gaussian_density(x, mean, sdev):
     pass
 
 
+#----------------------------------------------------------------------
+# HW-5
+#----------------------------------------------------------------------
+
 def knn(table, instance, k, numerical_columns, nominal_columns=[]):
     """Returns the k closest distance values and corresponding table
     instances forming the nearest neighbors of the given instance. 
@@ -472,38 +682,38 @@ def knn(table, instance, k, numerical_columns, nominal_columns=[]):
         square root applied.
 
     """
-    # numerical
-    # key = distance, element equals the datarow
+    # dictionary of k key value pairs
     dict_neighbors = {}
-    matching_cols = numerical_columns + nominal_columns
-
-    # compute closest
+    # go through rows
     for row in range(table.row_count()):
+        # what columns to compare
         dist = 0
-        # go through matching
-        for col in matching_cols:
-            # calc dist
-            if col in numerical_columns:
-                dist += (instance[col] - table[row][col]) ** 2
-            elif col in nominal_columns:
-                if table[row][col] != instance[col]:
-                    dist += 1
-        # add to dictionary
-        if dist in dict_neighbors:
-            dict_neighbors[dist].append(table[row])
-        else:  
-            dict_neighbors[dist] = [table[row]]
-    keys_list = list(dict_neighbors.keys())
-    keys_list.sort()
-    count = 0
-    result = {}
-    for key in keys_list:
-        count += 1
-        if count <= k:
-            result[key] = dict_neighbors[key]
-        else:
-            break
-    return result
+        # count numerical distance
+        for col in numerical_columns:
+            # add to distance
+            dist += (instance[col] - table[row][col]) ** 2
+        # count nominal distance
+        for nom_col in nominal_columns:
+            if instance[nom_col] != table[row][nom_col]:
+                dist += 1
+        # check if checking columns has values
+        if len(numerical_columns) > 0 or len(nominal_columns) > 0:
+            # check if key exists and add to dictionary
+            if dist in dict_neighbors:
+                dict_neighbors[dist].append(table[row])
+            else:  
+                dict_neighbors[dist] = [table[row]]
+    # return the k closest
+    # closest dictionary
+    closest = {}
+    sorted_key_list = sorted(dict_neighbors.keys())
+    if k <= len(sorted_key_list):
+        for x in range(k):
+            closest[sorted_key_list[x]] = dict_neighbors[sorted_key_list[x]]
+    else:
+        return dict_neighbors
+    
+    return closest
     pass
 
 

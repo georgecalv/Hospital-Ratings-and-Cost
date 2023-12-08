@@ -12,10 +12,6 @@ from data_table import DataTable, DataRow
 import matplotlib.pyplot as plt
 
 
-#----------------------------------------------------------------------
-# HW5
-#----------------------------------------------------------------------
-
 def normalize(table, column):
     """Normalize the values in the given column of the table. This
     function modifies the table.
@@ -456,8 +452,6 @@ def partition(table, columns):
         else:
             index = unique_list.index(temp)
             result_list[index].append(table[row].values())
-        
-
     return result_list
 
 pass
@@ -727,7 +721,6 @@ def box_plot(distributions, labels, xlabel, ylabel, title, filename=None):
         plt.show()
     # close the plot
     plt.close()
-
 
 
     
