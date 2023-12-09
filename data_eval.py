@@ -306,6 +306,7 @@ def tdidt_eval(train, test, label_col, columns):
     tree = tdidt(train, label_col, columns)
     tree = resolve_attribute_values(tree, train)
     tree = resolve_leaf_nodes(tree)
+    num_not_found = 0
     for row in range(test.row_count()):
         try:
             prediction = tdidt_predict(tree, test[row])
@@ -315,8 +316,8 @@ def tdidt_eval(train, test, label_col, columns):
             index_actual = actual_col.index(actual_label)
             confusion_matrix[index_actual][predicted_label] += 1
         except:
-            print("value not in tree")
-            print(test[row])
+            num_not_found += 1
+    print("Number values not in tree", num_not_found)
     return confusion_matrix
     pass
 
