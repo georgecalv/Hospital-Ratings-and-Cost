@@ -12,6 +12,43 @@ from data_learn import *
 from random import *
 
 
+def ensemble_knn_tree_eval(table, test, folds, k, label_col, columns):
+    """Runs an ensemble method of decision trees and knn_stratified 
+    then based on their respective accuracy will use weighted vote 
+    to choose the prediction and return a confusion_matrix
+
+    Args:
+        table: The original table.
+        
+        folds: folds to use for knn_strat
+        label_col: The column with the class labels. 
+
+        
+
+    Returns: confusion_matrix
+    # """
+    # # make ensemble
+    # train, remainder = holdout(table, table.row_count() // 5)
+    # knn_strat = knn_stratified(table, folds, label_col, majority_vote, k, [], columns)
+    # knn_accuracy = accuracy(knn_strat, label_col)
+    # tree = tdidt_eval(train, remainder, label_col, columns)
+    # tree_accuracy = accuracy(tree, label_col)
+
+    # # create matrix
+    # confusion_cols = ["actual"]
+    # dist = distinct_values(table, label_col)
+    # confusion_cols.extend(dist)
+    # confusion_matrix = DataTable(confusion_cols)
+    # vals = [0 for x in range(confusion_matrix.column_count() - 1)]
+    # for col in confusion_cols:
+    #     if col != "actual":
+    #         temp = [col]
+    #         temp.extend(vals)
+    #         confusion_matrix.append(temp)
+
+    # for row in test:
+        
+
 
 #----------------------------------------------------------------------
 # HW-8
