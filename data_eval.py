@@ -12,41 +12,80 @@ from data_learn import *
 from random import *
 
 
-def ensemble_knn_tree_eval(table, test, folds, k, label_col, columns):
+def ensemble_knn_naive_eval(table, train, test, k, label_col, columns):
     """Runs an ensemble method of decision trees and knn_stratified 
     then based on their respective accuracy will use weighted vote 
     to choose the prediction and return a confusion_matrix
 
     Args:
         table: The original table.
-        
-        folds: folds to use for knn_strat
+        train: training set
+        test: test set
+        k: k nearest neighbors for knn
+        columns: columns to use for predicting
         label_col: The column with the class labels. 
 
-        
-
     Returns: confusion_matrix
-    # """
-    # # make ensemble
-    # train, remainder = holdout(table, table.row_count() // 5)
-    # knn_strat = knn_stratified(table, folds, label_col, majority_vote, k, [], columns)
-    # knn_accuracy = accuracy(knn_strat, label_col)
-    # tree = tdidt_eval(train, remainder, label_col, columns)
-    # tree_accuracy = accuracy(tree, label_col)
+    """
+    # create confusion matrix
+    confusion_cols = ["actual"]
+    # row for confusion matrix
+    dist = distinct_values(table, label_col)
+    confusion_cols.extend(dist)
+    confusion_matrix = DataTable(confusion_cols)
+    values = [0 for x in range(len(confusion_cols))]
+    for col in dist:
+        values[0] = col
+        confusion_matrix.append(values)
 
-    # # create matrix
-    # confusion_cols = ["actual"]
-    # dist = distinct_values(table, label_col)
-    # confusion_cols.extend(dist)
-    # confusion_matrix = DataTable(confusion_cols)
-    # vals = [0 for x in range(confusion_matrix.column_count() - 1)]
-    # for col in confusion_cols:
-    #     if col != "actual":
-    #         temp = [col]
-    #         temp.extend(vals)
-    #         confusion_matrix.append(temp)
+    # get accuracy scores of knn and naive
+    knn_model = knn_eval(train, test, majority_vote, k, label_col, [], columns)
+    naive_model = naive_bayes_eval(train, test, label_col, [], columns)
+    knn_avg_acc = 0
+    naive_avg_acc = 0
+    for col in knn_model.columns():
+        if col != "actual":
+            knn_avg_acc += accuracy(knn_model, col)
+            naive_avg_acc += accuracy(naive_model, col)
+    knn_avg_acc /= knn_model.column_count()
+    naive_avg_acc /= knn_model.column_count()
 
-    # for row in test:
+    acc_list = [knn_avg_acc, naive_avg_acc]
+
+    # predictions
+    for row in range(test.row_count()):
+        prediction_list = []
+        temp_row = DataRow(table.columns(), test[row].values())
+        # knn prediction
+        knn_closest_dict = knn(train, test[row], k, [], columns) 
+        knn_closest_instances = list_of_closest(knn_closest_dict)
+        # get predicted label
+        knn_predicted_labels = majority_vote(knn_closest_instances, list(knn_closest_dict.keys()), label_col)
+        knn_prediction = knn_predicted_labels[0]
+        temp_row[label_col] = knn_prediction
+        prediction_list.append(temp_row)
+
+        # naive bayes prediction
+        naive_prediction, prob = naive_bayes(train, test[row], label_col, [], columns)
+        temp_row[label_col] = naive_prediction
+        prediction_list.append(temp_row)
+
+
+        # atual prediction
+        final_prediction = weighted_vote(prediction_list, acc_list, label_col)
+        final_prediction = final_prediction[0][0]
+
+        actual = test[row][label_col]
+        
+        # put in matrix
+        index = column_values(confusion_matrix, 'actual').index(actual)
+        # print(confusion_matrix)
+        # print(index)
+        # print(final_prediction)
+        confusion_matrix[index][final_prediction] += 1
+    return confusion_matrix
+    pass
+
         
 
 
@@ -643,7 +682,6 @@ def knn_eval(train, test, vote_fun, k, label_col, numeric_cols, nominal_cols=[])
         temp = [label]
         temp.extend(vals)
         confusion_matrix.append(temp)
-
 
     # get testing results
     for row in range(test.row_count()):
